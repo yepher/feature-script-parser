@@ -8,9 +8,14 @@ fn corpus_dir() -> Option<PathBuf> {
     if let Ok(p) = std::env::var("FS_STD_CORPUS") {
         return Some(PathBuf::from(p));
     }
-    let candidate =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../onshape-std-library-mirror");
-    candidate.is_dir().then_some(candidate)
+    let here = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    [
+        "../../../feature_script_std",
+        "../../../onshape-std-library-mirror",
+    ]
+    .iter()
+    .map(|c| here.join(c))
+    .find(|c| c.is_dir())
 }
 
 fn std_interp() -> Option<Interp> {

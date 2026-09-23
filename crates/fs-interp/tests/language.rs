@@ -364,3 +364,17 @@ fn intersect_maps_takes_an_array_of_maps() {
         1.0
     );
 }
+
+#[test]
+fn try_does_not_hide_unimplemented_builtins() {
+    let mut i = interp(&[(
+        "test/main.fs",
+        "function a() { return try(@noSuchBuiltin(1)); }
+         function b() { try { @noSuchBuiltin(1); } catch { return 1; } return 2; }
+         function c() { return try({}.x.y); }",
+    )]);
+    let m = i.load_module("test/main.fs").unwrap();
+    assert!(i.eval_in(&m, "a()").is_err());
+    assert!(i.eval_in(&m, "b()").is_err());
+    assert!(i.eval_in(&m, "c()").unwrap().is_undefined());
+}

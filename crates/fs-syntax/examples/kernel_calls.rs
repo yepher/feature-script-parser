@@ -5,7 +5,7 @@
 //! walk the AST, find the calls, and dispatch them to your own implementation.
 //!
 //! ```text
-//! cargo run --example kernel_calls -- ../onshape-std-library-mirror/extrude.fs
+//! cargo run --example kernel_calls -- ../feature_script_std/extrude.fs
 //! ```
 
 use fs_syntax::ast::{Expr, ExprKind};

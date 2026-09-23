@@ -48,6 +48,15 @@ pub enum ErrorKind {
 }
 
 impl Error {
+    /// Whether FeatureScript `try` / `catch` may swallow this error. Thrown
+    /// values and ordinary runtime faults are catchable, as in Onshape; a
+    /// missing builtin or a module that failed to load is an interpreter /
+    /// kernel gap, and hiding it would turn "not implemented" into silent
+    /// empty results, so those always propagate.
+    pub fn is_catchable(&self) -> bool {
+        !matches!(self.kind, ErrorKind::Unimplemented(_) | ErrorKind::Load(_))
+    }
+
     pub fn new(kind: ErrorKind) -> Error {
         Error {
             kind,
@@ -73,6 +82,21 @@ impl Error {
     }
     pub fn thrown(v: Value) -> Error {
         Error::new(ErrorKind::Thrown(v))
+    }
+
+    /// Prefix the message with the builtin that raised it (`@evArea: ...`).
+    pub fn prefixed(mut self, name: &str) -> Error {
+        use ErrorKind::*;
+        self.kind = match self.kind {
+            Precondition(m) => Precondition(format!("{name}: {m}")),
+            Type(m) => Type(format!("{name}: {m}")),
+            Name(m) => Name(format!("{name}: {m}")),
+            Unimplemented(m) => Unimplemented(format!("{name}: {m}")),
+            Load(m) => Load(format!("{name}: {m}")),
+            Runtime(m) => Runtime(format!("{name}: {m}")),
+            other => other,
+        };
+        self
     }
 
     pub fn at(mut self, span: Span) -> Error {

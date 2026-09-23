@@ -132,7 +132,8 @@ impl Interp {
             }
             Try { expr, .. } => match self.eval(expr, env) {
                 Ok(v) => Ok(v),
-                Err(_) => Ok(Value::Undefined),
+                Err(e) if e.is_catchable() => Ok(Value::Undefined),
+                Err(e) => Err(e),
             },
             Switch { scrutinee, cases } => {
                 let key = self.eval(scrutinee, env)?;

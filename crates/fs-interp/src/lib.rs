@@ -9,7 +9,7 @@
 //! ```no_run
 //! use fs_interp::Interp;
 //!
-//! let mut interp = Interp::with_std_dir("../onshape-std-library-mirror");
+//! let mut interp = Interp::with_std_dir("../feature_script_std");
 //! let math = interp.load_module("onshape/std/math.fs").unwrap();
 //! let v = interp.eval_in(&math, "clamp(15, 0, 10)").unwrap();
 //! assert_eq!(v.as_number(), Some(10.0));

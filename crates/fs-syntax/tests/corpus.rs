@@ -2,9 +2,9 @@
 //! that printing and re-parsing yields the same tree (via printer idempotence).
 //!
 //! The corpus is looked up at `$FS_STD_CORPUS`, falling back to
-//! `../onshape-std-library-mirror` next to this repository (which is where
-//! <https://github.com/javawizard/onshape-std-library-mirror> lands if you
-//! clone it beside `feature-script-parser`). Missing corpus = test skipped.
+//! `../feature_script_std` next to this repository (which is where
+//! <https://github.com/yepher/feature_script_std> lands if you clone it
+//! beside `feature-script-parser`). Missing corpus = test skipped.
 
 use fs_syntax::{parse_module, print_module};
 use std::path::PathBuf;
@@ -14,8 +14,13 @@ fn corpus_dir() -> Option<PathBuf> {
         return Some(PathBuf::from(p));
     }
     let here = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let candidate = here.join("../../../onshape-std-library-mirror");
-    candidate.is_dir().then_some(candidate)
+    [
+        "../../../feature_script_std",
+        "../../../onshape-std-library-mirror",
+    ]
+    .iter()
+    .map(|c| here.join(c))
+    .find(|c| c.is_dir())
 }
 
 fn corpus_files() -> Vec<PathBuf> {

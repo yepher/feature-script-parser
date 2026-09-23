@@ -110,7 +110,7 @@ impl Interp {
                 Err(Flow::Error(Error::thrown(v).at(s.span)))
             }
             StmtKind::Try { body, catch, .. } => match self.exec_block(body, env) {
-                Err(Flow::Error(err)) => {
+                Err(Flow::Error(err)) if err.is_catchable() => {
                     if let Some(c) = catch {
                         let inner = Env::child(env);
                         if let Some(p) = &c.param {

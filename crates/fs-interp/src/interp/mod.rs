@@ -521,6 +521,7 @@ impl Interp {
             BuiltinResult::NotHandled => Err(Error::unimplemented(name).at(span)),
             BuiltinResult::Throw(v) => Err(Error::thrown(v).at(span)),
             BuiltinResult::Error(msg) => Err(Error::runtime(format!("{name}: {msg}")).at(span)),
+            BuiltinResult::Fail(e) => Err(e.prefixed(name).at(span)),
         }
     }
 

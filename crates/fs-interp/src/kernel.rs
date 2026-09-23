@@ -41,8 +41,13 @@ pub enum BuiltinResult {
     /// The kernel raised a FeatureScript-visible error (becomes a `throw` of
     /// the given value, so `try` can catch it).
     Throw(Value),
-    /// Fatal kernel failure with a message.
+    /// Fatal kernel failure with a message (a `Runtime` error).
     Error(String),
+    /// Any other interpreter error the kernel wants to surface with its kind
+    /// intact — in particular `Unimplemented`, which `try`/`catch` will not
+    /// swallow, so a missing query type or evaluation inside a std feature
+    /// fails the run instead of silently producing nothing.
+    Fail(crate::error::Error),
 }
 
 pub trait Kernel {
