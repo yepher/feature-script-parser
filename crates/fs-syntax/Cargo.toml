@@ -1,0 +1,17 @@
+[package]
+name = "fs-syntax"
+description = "Lexer, parser and AST for Onshape FeatureScript"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde = { workspace = true, optional = true }
+
+[features]
+default = ["serde"]
+serde = ["dep:serde"]
+
+[dev-dependencies]
+serde_json = { workspace = true }

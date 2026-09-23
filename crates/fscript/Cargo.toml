@@ -1,0 +1,16 @@
+[package]
+name = "fscript"
+description = "Command-line front end for the FeatureScript parser"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "fscript"
+path = "src/main.rs"
+
+[dependencies]
+fs-syntax = { path = "../fs-syntax" }
+fs-interp = { path = "../fs-interp" }
+serde_json = { workspace = true }

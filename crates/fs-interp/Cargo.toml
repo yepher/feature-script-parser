@@ -1,0 +1,13 @@
+[package]
+name = "fs-interp"
+description = "Tree-walking interpreter for Onshape FeatureScript with a pluggable geometry kernel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+fs-syntax = { path = "../fs-syntax" }
+indexmap = { workspace = true }
+regex = { workspace = true }
+serde_json = { workspace = true }
