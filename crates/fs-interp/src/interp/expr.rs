@@ -276,6 +276,21 @@ impl Interp {
                 Ok(a[i as usize].clone())
             }
             Value::Map(m) => Ok(m.get(idx).cloned().unwrap_or(Value::Undefined)),
+            // `SomeEnum["NAME"]` looks a member up by name; undefined if absent.
+            Value::EnumType(def) => match idx.as_str() {
+                Some(name) => Ok(def
+                    .members
+                    .iter()
+                    .position(|m| m == name)
+                    .map(|index| {
+                        Value::Enum(crate::value::EnumValue {
+                            def: def.clone(),
+                            index,
+                        })
+                    })
+                    .unwrap_or(Value::Undefined)),
+                None => Ok(Value::Undefined),
+            },
             Value::Undefined => Err(Error::type_error("cannot index undefined")),
             other => Err(Error::type_error(format!(
                 "cannot index a {}",
@@ -505,7 +520,12 @@ fn set_key(container: Value, key: Value, value: Value) -> EvalResult<Value> {
     let tags = container.clone();
     match container.untagged().clone() {
         Value::Map(mut m) => {
-            Rc::make_mut(&mut m).insert(key, value);
+            // Assigning `undefined` to a key removes it (`m.x = undefined`).
+            if value.is_undefined() {
+                Rc::make_mut(&mut m).shift_remove(&key);
+            } else {
+                Rc::make_mut(&mut m).insert(key, value);
+            }
             Ok(tags.retag(Value::Map(m)))
         }
         Value::Array(mut a) => {

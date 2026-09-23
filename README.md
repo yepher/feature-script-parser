@@ -144,17 +144,29 @@ FeatureScript that validates its `definition` map and then calls
 
 ```rust
 pub trait Kernel {
-    fn builtin(&mut self, name: &str, args: &[Value]) -> BuiltinResult;   // "@opExtrude", ...
+    fn builtin(&mut self, name: &str, args: &[Value], host: &mut dyn Host) -> BuiltinResult;
     fn print(&mut self, text: &str) { .. }
     fn as_any(&self) -> &dyn std::any::Any;
 }
+
+pub trait Host {                      // the interpreter, callable from inside a builtin
+    fn call(&mut self, name: &str, args: Vec<Value>) -> EvalResult<Value>;   // any visible std function
+    fn global(&mut self, name: &str) -> EvalResult<Value>;                  // e.g. `meter`
+    fn cast(&mut self, value: Value, type_name: &str) -> EvalResult<Value>;  // `value as Plane`
+    fn is_type(&mut self, value: &Value, type_name: &str) -> EvalResult<bool>;
+}
 ```
+
+The kernel is detached from the interpreter while a builtin runs, and gets a `Host` instead so
+it can build std-typed results the canonical way — `plane(origin, normal, x)`,
+`vector(x, y, z) * meter`, `qTransient(id)`, `{..} as ValueWithUnits` — rather than
+hand-assembling maps.
 
 `StubKernel` implements `@newContext` / `@isContext` / version queries and records every other
 builtin it is asked for; `fscript std-check` and `examples/kernel_calls.rs` tell you which
-builtins a given feature needs. The adapter for a real kernel (stepkernel, a Parasolid bridge)
-belongs in that kernel's own repository, depending on `fs-interp`, so this crate stays free of
-geometry dependencies. Arguments arrive as plain `Value`s: `definition` is a map, queries are
+builtins a given feature needs. The adapter for a real kernel belongs in its own crate depending on `fs-interp`, so this
+crate stays free of geometry dependencies; `fs_script_runner` (sibling checkout) is the
+gkernel adapter and runs the std `extrude` feature end to end. Arguments arrive as plain `Value`s: `definition` is a map, queries are
 the maps `qUnion`/`qCreatedBy` build, lengths are `ValueWithUnits` maps with a `value` in metres.
 
 ### Known gaps

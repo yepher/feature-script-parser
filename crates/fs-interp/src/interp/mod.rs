@@ -11,7 +11,7 @@ mod stmt;
 use crate::env::{Env, LazyGlobal, Lookup, ModuleEnv};
 use crate::error::{Error, ErrorKind, EvalResult, Flow};
 use crate::intrinsics;
-use crate::kernel::{BuiltinResult, Kernel};
+use crate::kernel::{BuiltinResult, DetachedKernel, Host, Kernel};
 use crate::value::{EnumDef, FnKind, Function, Overload, TypeDef, Value};
 use fs_syntax::ast::{Block, FunctionSig, ItemKind, Module, Stmt, StmtKind, Version};
 use fs_syntax::{parse_module, Span};
@@ -512,7 +512,11 @@ impl Interp {
         {
             return r.map_err(|e| e.at(span));
         }
-        match self.kernel.builtin(name, &args) {
+        // Detach the kernel so it can call back into the interpreter.
+        let mut kernel = std::mem::replace(&mut self.kernel, Box::new(DetachedKernel));
+        let result = kernel.builtin(name, &args, self);
+        self.kernel = kernel;
+        match result {
             BuiltinResult::Value(v) => Ok(v),
             BuiltinResult::NotHandled => Err(Error::unimplemented(name).at(span)),
             BuiltinResult::Throw(v) => Err(Error::thrown(v).at(span)),
@@ -591,9 +595,20 @@ impl Interp {
                 }
                 Ok(Value::Tagged(t, Rc::new(value)))
             }
-            Some(Value::EnumType(_)) => Err(Error::type_error(format!(
-                "cannot cast to enum `{type_name}`"
-            ))),
+            // `"NAME" as SomeEnum` converts a member name to the member.
+            Some(Value::EnumType(def)) => match value.untagged() {
+                Value::Enum(e) if Rc::ptr_eq(&e.def, &def) => Ok(value.clone()),
+                Value::Str(name) => match def.members.iter().position(|m| m == &**name) {
+                    Some(index) => Ok(Value::Enum(crate::value::EnumValue { def, index })),
+                    None => Err(Error::type_error(format!(
+                        "`{name}` is not a member of enum `{type_name}`"
+                    ))),
+                },
+                other => Err(Error::type_error(format!(
+                    "cannot cast {} to enum `{type_name}`",
+                    other.type_name()
+                ))),
+            },
             Some(other) => Err(Error::type_error(format!(
                 "`{type_name}` is not a type (it is a {})",
                 other.type_name()
@@ -619,6 +634,84 @@ impl Interp {
                 kind,
             })],
         }))
+    }
+}
+
+impl Interp {
+    /// Scope used to resolve names for [`Host`] calls: the module currently
+    /// executing, or the first loaded module.
+    fn host_scope(&self) -> Option<Rc<Env>> {
+        self.current_module
+            .clone()
+            .or_else(|| self.modules().into_iter().next())
+            .map(Env::module_scope)
+    }
+
+    fn host_lookup(&mut self, name: &str) -> EvalResult<Value> {
+        if let Some(scope) = self.host_scope() {
+            if let Some(v) = self.lookup(&scope, name)? {
+                return Ok(v);
+            }
+        }
+        for m in self.modules() {
+            if m.exports.borrow().contains(name) {
+                let scope = Env::module_scope(m.clone());
+                if let Some(v) = self.lookup(&scope, name)? {
+                    return Ok(v);
+                }
+            }
+        }
+        Err(Error::name(format!(
+            "host: `{name}` is not defined in any loaded module"
+        )))
+    }
+}
+
+impl Host for Interp {
+    fn call(&mut self, name: &str, args: Vec<Value>) -> EvalResult<Value> {
+        // Merge overloads across modules the way a call site would.
+        if let Some(scope) = self.host_scope() {
+            let overloads = self.overloads(&scope, name);
+            if !overloads.is_empty() {
+                return self.call_overloads(name, &overloads, args, None);
+            }
+        }
+        let f = self.host_lookup(name)?;
+        self.call_value(&f, args, None)
+    }
+
+    fn global(&mut self, name: &str) -> EvalResult<Value> {
+        self.host_lookup(name)
+    }
+
+    fn cast(&mut self, value: Value, type_name: &str) -> EvalResult<Value> {
+        let ty = self.host_lookup(type_name)?;
+        let Value::Type(t) = ty else {
+            return Err(Error::type_error(format!(
+                "host: `{type_name}` is not a type"
+            )));
+        };
+        // Cast in the declaring module's scope so the typecheck resolves.
+        let module = self
+            .modules
+            .get(&t.module)
+            .cloned()
+            .ok_or_else(|| Error::name(format!("module `{}` not loaded", t.module)))?;
+        let scope = Env::module_scope(module);
+        Interp::cast(self, value, type_name, &scope)
+    }
+
+    fn is_type(&mut self, value: &Value, type_name: &str) -> EvalResult<bool> {
+        let ty = self.host_lookup(type_name)?;
+        match ty {
+            Value::Type(t) => Ok(value.has_tag(&t)),
+            Value::EnumType(def) => {
+                Ok(matches!(value.untagged(), Value::Enum(e) if Rc::ptr_eq(&e.def, &def)))
+            }
+            _ => Err(Error::type_error(format!(
+                "host: `{type_name}` is not a type"
+            ))),
+        }
     }
 }
 

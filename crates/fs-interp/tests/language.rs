@@ -256,6 +256,14 @@ fn maps_member_access_and_bare_keys() {
     assert_eq!(a[4].as_bool(), Some(true));
     assert_eq!(a[5].as_bool(), Some(true));
     assert!(eval_err("", "undefined.x").contains("undefined"));
+    // Assigning undefined removes the key.
+    assert_eq!(
+        num(&eval(
+            "function g() { var m = { \"a\" : 1, \"b\" : 2 }; m.a = undefined; return @size(m); }",
+            "g()"
+        )),
+        1.0
+    );
 }
 
 #[test]
@@ -338,4 +346,21 @@ fn print_goes_to_kernel() {
     i.eval_in(&m, "p()").unwrap();
     let stub = i.kernel.as_any().downcast_ref::<StubKernel>().unwrap();
     assert_eq!(stub.output.borrow().as_str(), "hi2");
+}
+
+#[test]
+fn intersect_maps_takes_an_array_of_maps() {
+    assert_eq!(
+        num(&eval("", "@size(@intersectMaps([{a:0, b:1}, {a:0, b:2}]))")),
+        2.0
+    );
+    assert_eq!(
+        num(&eval("", "@intersectMaps([{a:0, b:1}, {a:0, b:2}]).b")),
+        2.0
+    );
+    assert_eq!(num(&eval("", "@size(@intersectMaps([{a:0}, {b:1}]))")), 0.0);
+    assert_eq!(
+        num(&eval("", "@size(@intersectMaps({a:0, c:1}, {a:5}))")),
+        1.0
+    );
 }

@@ -8,9 +8,29 @@
 //! names. Pure-language builtins (`@size`, `@sqrt`, `@match`, ...) are handled
 //! by the interpreter before the kernel is consulted (see `intrinsics.rs`).
 
+use crate::error::EvalResult;
 use crate::value::{NativeValue, Value};
 use std::any::Any;
 use std::cell::RefCell;
+
+/// The interpreter as seen from inside a kernel builtin: a way to call
+/// FeatureScript functions (std constructors such as `plane`, `vector`,
+/// `qTransient`), read globals (`meter`, `QueryType`) and apply type tags,
+/// so a kernel can return values that satisfy the std library's typecheck
+/// predicates without re-implementing them.
+///
+/// Names resolve in the module that made the builtin call, then in the
+/// exports of every loaded module. While a builtin runs, the kernel itself
+/// is detached from the interpreter, so a host call that reaches another
+/// `@builtin` fails with `Unimplemented`.
+pub trait Host {
+    fn call(&mut self, name: &str, args: Vec<Value>) -> EvalResult<Value>;
+    fn global(&mut self, name: &str) -> EvalResult<Value>;
+    /// `value as Type` (runs the typecheck predicate and tags).
+    fn cast(&mut self, value: Value, type_name: &str) -> EvalResult<Value>;
+    /// `value is Type`.
+    fn is_type(&mut self, value: &Value, type_name: &str) -> EvalResult<bool>;
+}
 
 /// Outcome of asking a kernel to handle a builtin.
 pub enum BuiltinResult {
@@ -27,7 +47,7 @@ pub enum BuiltinResult {
 
 pub trait Kernel {
     /// Handle `@name(args...)`. `name` includes the leading `@`.
-    fn builtin(&mut self, name: &str, args: &[Value]) -> BuiltinResult;
+    fn builtin(&mut self, name: &str, args: &[Value], host: &mut dyn Host) -> BuiltinResult;
 
     /// Called for `@print` output. Defaults to stdout.
     fn print(&mut self, text: &str) {
@@ -85,7 +105,7 @@ impl StubKernel {
 }
 
 impl Kernel for StubKernel {
-    fn builtin(&mut self, name: &str, args: &[Value]) -> BuiltinResult {
+    fn builtin(&mut self, name: &str, args: &[Value], _host: &mut dyn Host) -> BuiltinResult {
         match name {
             "@newContext" => {
                 let version = args
@@ -143,5 +163,17 @@ fn enum_or_number(v: &Value) -> Option<f64> {
             .next()
             .and_then(|s| s.parse().ok()),
         _ => None,
+    }
+}
+
+/// Stands in for the real kernel while it is detached during a builtin call.
+pub(crate) struct DetachedKernel;
+
+impl Kernel for DetachedKernel {
+    fn builtin(&mut self, _name: &str, _args: &[Value], _host: &mut dyn Host) -> BuiltinResult {
+        BuiltinResult::NotHandled
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }

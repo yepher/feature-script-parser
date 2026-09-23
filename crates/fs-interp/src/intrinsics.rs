@@ -311,12 +311,31 @@ fn merge_maps(args: &[Value]) -> EvalResult<Value> {
     Ok(src.retag(Value::map(out)))
 }
 
+/// `@intersectMaps([m1, m2, ...])` — keys present in every map, values from
+/// the last one (the std `intersectMaps(maps is array)` form). The two-map
+/// spelling `@intersectMaps(a, b)` is accepted as well.
 fn intersect_maps(args: &[Value]) -> EvalResult<Value> {
-    let a = arg_map(args, 0)?;
-    let b = arg_map(args, 1)?;
-    let out: Map = a
+    let maps: Vec<Rc<Map>> = if args.len() == 1 {
+        let list = arg_array(args, 0)?;
+        list.iter()
+            .enumerate()
+            .map(|(i, v)| {
+                v.as_map()
+                    .cloned()
+                    .ok_or_else(|| Error::type_error(format!("element {i} must be a map")))
+            })
+            .collect::<EvalResult<_>>()?
+    } else {
+        (0..args.len())
+            .map(|i| arg_map(args, i).cloned())
+            .collect::<EvalResult<_>>()?
+    };
+    let Some(last) = maps.last() else {
+        return Ok(Value::empty_map());
+    };
+    let out: Map = last
         .iter()
-        .filter(|(k, _)| b.contains_key(*k))
+        .filter(|(k, _)| maps.iter().all(|m| m.contains_key(*k)))
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
     Ok(Value::map(out))

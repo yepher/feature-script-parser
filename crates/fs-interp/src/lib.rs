@@ -25,5 +25,5 @@ pub mod value;
 
 pub use error::{Error, ErrorKind, EvalResult};
 pub use interp::{DirLoader, Interp, MemoryLoader, ModuleLoader};
-pub use kernel::{BuiltinResult, Kernel, StubKernel};
+pub use kernel::{BuiltinResult, Host, Kernel, StubKernel};
 pub use value::{NativeValue, Value};
